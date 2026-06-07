@@ -1,0 +1,6 @@
+{
+  "name": "vercel-proxy",
+  "version": "1.0.0",
+  "description": "A simple proxy deployed on Vercel",
+  "main": "api/proxy.js"
+}
