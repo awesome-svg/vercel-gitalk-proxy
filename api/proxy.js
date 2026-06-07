@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
   // 开发时保留 localhost，部署后添加 https://yourblog.com
   const ALLOWED_ORIGINS = [
     'http://localhost:4000', 
-    'https://gitalk.personyzh.cn', // 你的博客域名
+    'https://personyzh.cn', // 你的博客域名
     'null' // 某些本地文件访问可能产生 null origin
   ];
 
