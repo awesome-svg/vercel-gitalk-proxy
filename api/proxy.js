@@ -1,57 +1,44 @@
 module.exports = async (req, res) => {
-  // 1. ÉèÖÃ CORS Í·£¬ÔÊĞí¿çÓò·ÃÎÊ
-  // Éú²ú»·¾³½¨Òé½« '*' Ìæ»»ÎªÄãµÄ²©¿ÍÓòÃû£¬Èç 'https://yourblog.com'
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 1. è®¾ç½® CORS å¤´éƒ¨ï¼Œæ˜ç¡®å…è®¸çš„æ¥æºï¼ˆæ­¤å¤„å…è®¸ localhost:4000 å’Œä½ çš„åšå®¢åŸŸåï¼‰
+  const allowedOrigins = ['http://localhost:4000', 'https://personyzh.com']; // æ›¿æ¢ä¸ºä½ çš„å®é™…åšå®¢åŸŸå
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // å¦‚æœä¸æƒ³å…è®¸æ‰€æœ‰æ¥æºï¼Œå¯ä»¥è¿”å› 403 æˆ–é»˜è®¤ä¸è®¾ç½®å¤´éƒ¨
+    // ä½†ä¸ºäº†è°ƒè¯•æ–¹ä¾¿ï¼Œå¼€å‘é˜¶æ®µå¯ä»¥ä¸´æ—¶å…è®¸æ‰€æœ‰æ¥æºï¼š
+    // res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  // 2. å…è®¸çš„è¯·æ±‚æ–¹æ³•
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // 3. å…è®¸çš„è¯·æ±‚å¤´
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // 4. å…è®¸æºå¸¦å‡­è¯ï¼ˆå¦‚ cookiesï¼‰
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // 5. é¢„æ£€è¯·æ±‚ç¼“å­˜æ—¶é—´ï¼ˆç§’ï¼‰
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24å°æ—¶
 
-  // 2. ´¦ÀíÔ¤¼ìÇëÇó (OPTIONS)
+  // 6. å¤„ç† OPTIONS é¢„æ£€è¯·æ±‚
   if (req.method === 'OPTIONS') {
+    // å¯¹äº OPTIONS è¯·æ±‚ï¼Œç›´æ¥è¿”å› 204 No Content
     return res.status(204).end();
   }
 
-  // 3. ½öÔÊĞí POST ÇëÇó (¸ù¾İÊµ¼ÊĞèÇóĞŞ¸Ä£¬Èç GET)
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  try {
-    // 4. »ñÈ¡Ç°¶Ë´«À´µÄ²ÎÊı
-    const body = req.body;
-    
-    // Ê¾Àı£ºÕë¶Ô GitHub OAuth ½»»» access_token
-    // Èç¹ûÊÇÆäËû´úÀí£¬ÇëĞŞ¸ÄÏÂ·½µÄ targetUrl ºÍÇëÇóÌå¹¹ÔìÂß¼­
-    const targetUrl = 'https://github.com/login/oauth/access_token';
-    
-    // ´Ó»·¾³±äÁ¿ÖĞ»ñÈ¡Ãô¸ĞĞÅÏ¢£¨ÍÆ¼ö×ö·¨£¬±ÜÃâÓ²±àÂë£©
-    const client_id = process.env.GITHUB_CLIENT_ID;
-    const client_secret = process.env.GITHUB_CLIENT_SECRET;
-
-    if (!client_id || !client_secret) {
-      return res.status(500).json({ error: 'Server configuration error: Missing env vars' });
+  // 7. å¤„ç†å®é™…çš„ POST è¯·æ±‚ï¼ˆä½ çš„ä»£ç†é€»è¾‘ï¼‰
+  if (req.method === 'POST') {
+    try {
+      const { code } = req.body;
+      // ... ä½ çš„ä»£ç†é€»è¾‘ï¼Œå‘ GitHub è¯·æ±‚ access_token ...
+      // ç¡®ä¿åœ¨è¿”å›å“åº”æ—¶ï¼ŒCORS å¤´éƒ¨å·²ç»è®¾ç½®
+      return res.status(200).json({ access_token: '...' });
+    } catch (error) {
+      console.error('Proxy error:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
-
-    // 5. Ïòºó¶ËÄ¿±ê·şÎñÆ÷·¢ÆğÇëÇó
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id,
-        client_secret,
-        code: body.code, // Ç°¶Ë´«À´µÄ authorization code
-      }),
-    });
-
-    const data = await response.json();
-
-    // 6. ½«ºó¶ËÏìÓ¦·µ»Ø¸øÇ°¶Ë
-    return res.status(response.status).json(data);
-
-  } catch (error) {
-    console.error('Proxy Error:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
   }
+
+  // 8. å…¶ä»–è¯·æ±‚æ–¹æ³•è¿”å› 405
+  return res.status(405).json({ error: 'Method Not Allowed' });
 };
