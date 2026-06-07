@@ -5,12 +5,12 @@
  */
 
 module.exports = async (req, res) => {
-  // =================配置区域=================
+  // ================= 配置区域 =================
   // 允许跨域的源列表 (生产环境建议只填你的博客域名)
   // 开发时保留 localhost，部署后添加 https://yourblog.com
   const ALLOWED_ORIGINS = [
     'http://localhost:4000', 
-    'https://personyzh.cn', // 你的博客域名
+    'https://gitalk.personyzh.cn', // 你的博客域名
     'null' // 某些本地文件访问可能产生 null origin
   ];
 
@@ -18,11 +18,11 @@ module.exports = async (req, res) => {
   const origin = req.headers.origin;
   
   // 动态设置 Access-Control-Allow-Origin
-  // 如果来源在白名单中，则允许；否则不允许（或设置为 '*' 但无法携带 Cookie）
   if (ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
     // 调试阶段可以临时放开所有来源，生产环境建议注释掉下面这行
+    // 注意：如果允许 '*'，则不能设置 Access-Control-Allow-Credentials 为 true
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
 
@@ -32,12 +32,12 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Max-Age', '86400'); // 预检请求缓存24小时
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  // =================处理预检请求 (OPTIONS)=================
+  // ================= 处理预检请求 (OPTIONS) =================
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
 
-  // =================处理实际请求 (POST)=================
+  // ================= 处理实际请求 (POST) =================
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -53,7 +53,6 @@ module.exports = async (req, res) => {
     }
 
     // 2. 解析前端传来的 body
-    // Gitalk 通常发送 JSON: { code: "authorization_code" }
     let body = {};
     try {
       if (typeof req.body === 'string') {
@@ -72,6 +71,7 @@ module.exports = async (req, res) => {
     }
 
     // 3. 向 GitHub 发起请求交换 Access Token
+    // 使用 node-fetch 或内置 fetch (Vercel Node 18+ 支持内置 fetch)
     const githubResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -89,7 +89,6 @@ module.exports = async (req, res) => {
     const data = await githubResponse.json();
 
     // 5. 将 GitHub 的响应原样返回给前端
-    // 注意：GitHub 可能返回 error 字段，我们直接透传，让前端 Gitalk 库处理
     return res.status(githubResponse.status).json(data);
 
   } catch (error) {
