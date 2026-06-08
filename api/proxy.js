@@ -1,10 +1,10 @@
 module.exports = async (req, res) => {
-  // 1. 设置 CORS 头，允许跨域
+  // 1. 设置 CORS 头，允许任何域名访问（因为 Gitalk 可能部署在任何地方）
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  // 2. 处理预检请求
+  // 2. 处理预检请求 (OPTIONS)
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -15,62 +15,51 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 4. 解析 application/x-www-form-urlencoded 格式的请求体
-    const rawBody = await new Promise((resolve, reject) => {
-      let data = '';
-      req.on('data', chunk => data += chunk);
-      req.on('end', () => resolve(data));
-      req.on('error', reject);
-    });
+    const { code, state } = req.body;
 
-    const params = new URLSearchParams(rawBody);
-    const code = params.get('code');
-    const state = params.get('state');
-
-    // 5. 验证必要参数
+    // 4. 验证必要参数
     if (!code) {
-      return res.status(400).json({ 
-        error: 'Missing code parameter',
-        received_body: rawBody // 用于调试
-      });
+      return res.status(400).json({ error: 'Missing code parameter' });
     }
 
-    // 6. 从环境变量获取 GitHub 配置
+    // 5. 从环境变量获取 GitHub 配置
     const CLIENT_ID = process.env.GITHUB_CLIENT_ID;
     const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 
     if (!CLIENT_ID || !CLIENT_SECRET) {
-      console.error('Missing GitHub OAuth environment variables');
-      return res.status(500).json({ 
-        error: 'Server configuration error: Missing OAuth credentials' 
-      });
+      console.error('Missing env vars');
+      return res.status(500).json({ error: 'Server Configuration Error' });
     }
 
-    // 7. 向 GitHub 请求 access_token
-    const response = await fetch('https://github.com/login/oauth/access_token', {
+    // 6. 向 GitHub 交换 Access Token
+    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: new URLSearchParams({
+      body: JSON.stringify({
         client_id: CLIENT_ID,
         client_secret: CLIENT_SECRET,
         code: code,
-        ...(state && { state: state }) // 可选参数
-      }).toString()
+        state: state,
+      }),
     });
 
-    const result = await response.json();
+    const tokenData = await tokenResponse.json();
 
-    // 8. 将 GitHub 的响应原样返回给前端
-    return res.status(response.status).json(result);
+    // 7. 如果 GitHub 返回错误，转发错误
+    if (tokenData.error) {
+      return res.status(400).json(tokenData);
+    }
+
+    // 8. 返回 Access Token 给前端
+    return res.status(200).json({
+      access_token: tokenData.access_token,
+    });
 
   } catch (error) {
-    console.error('Proxy server error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    console.error('Proxy error:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
